@@ -1,3 +1,4 @@
+import re
 import google.generativeai as genai
 from .config import GOOGLE_API_KEY, GEMINI_MODEL_NAME
 from .dictionary_manager import DictionaryManager
@@ -61,7 +62,24 @@ class Translator:
         print("Đang gửi yêu cầu đến Gemini API...")
         try:
             response = self.model.generate_content(prompt)
-            return response.text.strip()
+            translated_text = response.text.strip()
+
+            # --- BEST PRACTICE START ---
+            # Đây là logic mới để chuẩn hóa output:
+
+            # 1. Tách văn bản thành các đoạn dựa trên MỘT HOẶC NHIỀU ký tự newline
+            #    Điều này xử lý cả trường hợp model trả về '\n' và '\n\n'
+            paragraphs = re.split(r'\n+', translated_text)
+
+            # 2. Lọc ra các đoạn rỗng (nếu có)
+            non_empty_paragraphs = [p for p in paragraphs if p.strip()]
+
+            # 3. Nối các đoạn lại với nhau, đảm bảo mỗi đoạn cách nhau 2 dấu newline
+            formatted_text = '\n\n'.join(non_empty_paragraphs)
+
+            return formatted_text
+            # --- BEST PRACTICE END ---
+
         except Exception as e:
             print(f"Lỗi khi gọi API: {e}")
             return f"Lỗi Dịch Thuật: {e}"

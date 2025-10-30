@@ -175,7 +175,7 @@ if __name__ == "__main__":
     # Đặt là 10 để dịch 10 chương.
     # Đặt là 5 để dịch 5 chương.
     # Đặt là None để dịch TẤT CẢ chương mới tìm thấy.
-    CHAPTER_LIMIT = 3
+    CHAPTER_LIMIT = 1
     # ===============================
 
     run_full_translation_process(
