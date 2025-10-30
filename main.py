@@ -132,38 +132,83 @@ def run_full_translation_process(
         chinese_text = scraper.get_chapter_content(url)
 
         if not chinese_text or not chinese_text.strip():
-            print(f"Bỏ qua chương này do không cào được nội dung hoặc nội dung rỗng.")
-            continue
+            print(f"LỖI: Không cào được nội dung hoặc nội dung rỗng. Dừng xử lý batch này.")
+            break
 
-        # 7. Thực hiện dịch
+        text_to_translate = f"{title}\n\n{chinese_text}"
+
+        # Thực hiện dịch
         print("Đã có nội dung. Bắt đầu dịch...")
-        vietnamese_text = translator.translate_chapter(chinese_text)
+        full_translated_output = translator.translate_chapter(text_to_translate)
         print("Dịch xong.")
 
-        # 8. Ghi ra file output
-        safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_')).rstrip()
+        # Tách tiêu đề và nội dung đã dịch
+        translated_title = title  # Gán mặc định phòng trường hợp tách lỗi
+        vietnamese_text = full_translated_output  # Gán mặc định
+
+        try:
+            # Tách output dựa trên ký tự xuống dòng ĐẦU TIÊN
+            parts = full_translated_output.split('\n', 1)
+
+            # Lấy dòng tiêu đề thô (raw) mà AI trả về
+            raw_translated_title = parts[0].strip()
+
+            # Pattern này tìm các tiền tố như "Chương 1:", "chương 1 -", "C 1 ", "Quyển 2: "...
+            # và xóa chúng đi, chỉ giữ lại phần tên thật.
+            # re.IGNORECASE = không phân biệt hoa/thường
+            pattern_to_remove = r'^(Chương|C|Q|Quyển)\s*\d+\s*[:\-–—\s]*\s*'
+
+            # Thay thế pattern tìm thấy bằng chuỗi rỗng ''
+            cleaned_title = re.sub(pattern_to_remove, '', raw_translated_title, flags=re.IGNORECASE).strip()
+
+            # Kiểm tra: Nếu sau khi xóa mà tiêu đề bị rỗng (ví dụ: tiêu đề chỉ là "Chương 1")
+            # thì chúng ta giữ lại tiêu đề thô ban đầu.
+            if not cleaned_title:
+                translated_title = "Vô Đề"
+            else:
+                translated_title = cleaned_title
+
+            if len(parts) > 1:
+                # Lấy phần còn lại và loại bỏ khoảng trắng thừa
+                vietnamese_text = parts[1].strip()
+            else:
+                vietnamese_text = ""  # Không có nội dung sau tiêu đề
+
+            print(f"Đã tách tiêu đề dịch: {translated_title}")
+
+        except Exception as e:
+            print(f"Cảnh báo: Lỗi khi tách tiêu đề ({e}). Sẽ dùng tiêu đề gốc và toàn bộ nội dung.")
+            # translated_title và vietnamese_text đã được gán giá trị mặc định ở trên
+
+        # 9. Ghi ra file output
+        # Sử dụng tiêu đề ĐÃ DỊCH để tạo tên file an toàn
+        safe_title = "".join(c for c in translated_title if c.isalnum() or c in (' ', '_')).rstrip()
+        if not safe_title:
+            safe_title = f"chuong_{i}"  # Dự phòng nếu tiêu đề dịch bị rỗng
         try:
             chapter_index = all_chapters.index(chapter_info) + 1
             output_filename = f"{chapter_index:04d} - {safe_title}.txt"
         except ValueError:
-            output_filename = f"{safe_title}.txt"
+            output_filename = f"unk_{safe_title}.txt"  # Dự phòng nếu không tìm thấy index
 
         output_path = os.path.join(book_output_dir, output_filename)
 
         try:
+            # THAY ĐỔI 3: Ghi cả tiêu đề đã dịch và nội dung đã dịch
             with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(vietnamese_text)
+                f.write(f"{translated_title}\n\n{vietnamese_text}")
+
             print(f"Đã lưu thành công vào: {output_path}")
 
-            # 9. Cập nhật "bookmark"
+            # 10. Cập nhật "bookmark" (Logic cũ là 9)
             progress_manager.update_progress(book_id, chapter_info, book_url)
+            # Log tiêu đề GỐC để biết chúng ta đã xử lý chương nào
             print(f"Đã cập nhật tiến độ: Đã xong chương '{title}'")
 
         except Exception as e:
             print(f"Lỗi khi ghi file output {output_path}: {e}")
 
     print(f"\n--- HOÀN TẤT BATCH {total_batch} CHƯƠNG CHO TRUYỆN {book_id} ---")
-
 
 if __name__ == "__main__":
     # --- Khu vực cấu hình ---

@@ -27,14 +27,19 @@ class Translator:
             # Format các thuật ngữ
             items = [f'- "{k}" phải được dịch là "{v}"' for k, v in glossary.items()]
             glossary_prompt_part = (
-                    "YÊU CẦU CỐT LÕI: Bạn PHẢI tuân thủ nghiêm ngặt bảng chú giải (glossary) sau đây "
+                    "YÊU CẦU CỐT LÕI (GLOSSARY): Bạn PHẢI tuân thủ nghiêm ngặt bảng chú giải (glossary) sau đây "
                     "cho các tên riêng và thuật ngữ. KHÔNG được dịch tự do các từ này:\n" +
                     "\n".join(items)
             )
 
         return f"""
         Nhiệm vụ: Dịch đoạn văn truyện tiếng Trung sau đây sang tiếng Việt.
-        Phong cách: Văn phong mượt mà, tự nhiên, trôi chảy, đúng ngữ cảnh truyện (kiếm hiệp, tiên hiệp, đô thị...).
+
+        --- QUY TẮC PHONG CÁCH & ĐỊNH DẠNG ---
+        1.  Phong cách: Văn phong mượt mà, trôi chảy, phù hợp ngữ cảnh (kiếm hiệp, tiên hiệp, đô thị...).
+        2.  ƯU TIÊN HÁN VIỆT: Đối với tên riêng, địa danh, tước vị (ví dụ: 'Lục sư tỷ', 'Vân Lam Tông'), PHẢI ưu tiên dùng từ Hán Việt thay vì dịch nghĩa thuần Việt (KHÔNG dịch 'sáu sư tỷ', 'Mây Lam Tông') trừ khi glossary (bảng chú giải) yêu cầu khác.
+        3.  HỘI THOẠI: Nội dung trong cặp dấu「」là lời thoại, BẮT BUỘC thay thế cặp dấu「」thành dấu ngoặc kép "".
+        4.  TIÊU ĐỀ: Tiêu đề (nếu có ở dòng đầu) phải được dịch và giữ ở dòng đầu tiên.
 
         {glossary_prompt_part}
 
@@ -64,9 +69,6 @@ class Translator:
             response = self.model.generate_content(prompt)
             translated_text = response.text.strip()
 
-            # --- BEST PRACTICE START ---
-            # Đây là logic mới để chuẩn hóa output:
-
             # 1. Tách văn bản thành các đoạn dựa trên MỘT HOẶC NHIỀU ký tự newline
             #    Điều này xử lý cả trường hợp model trả về '\n' và '\n\n'
             paragraphs = re.split(r'\n+', translated_text)
@@ -78,7 +80,6 @@ class Translator:
             formatted_text = '\n\n'.join(non_empty_paragraphs)
 
             return formatted_text
-            # --- BEST PRACTICE END ---
 
         except Exception as e:
             print(f"Lỗi khi gọi API: {e}")
