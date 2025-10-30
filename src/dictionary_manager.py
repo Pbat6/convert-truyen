@@ -17,19 +17,47 @@ class DictionaryManager:
     def _load_key_value_file(self, file_path):
         """Hàm nội bộ để đọc file .txt (dạng key=value)"""
         glossary = {}
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    if '=' not in line:
-                        continue
+        content = None
 
-                    parts = line.strip().split('=', 1)
-                    if len(parts) == 2 and parts[0]:
-                        glossary[parts[0]] = parts[1]
+        # Thử đọc file với các encoding phổ biến
+        try:
+            # 1. Thử UTF-8 (chuẩn)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError as e:
+            # 2. Nếu UTF-8 lỗi (ví dụ: '0xff'), thử UTF-16
+            # Lỗi '0xff' ở vị trí 0 thường là BOM của UTF-16
+            print(f"Cảnh báo: Đọc {file_path} bằng UTF-8 thất bại. Thử lại bằng UTF-16...")
+            try:
+                # 'utf-16' sẽ tự động phát hiện BOM (LE hoặc BE)
+                with open(file_path, 'r', encoding='utf-16') as f:
+                    content = f.read()
+                print(f"Đã đọc thành công {file_path} bằng UTF-16.")
+            except Exception as e_utf16:
+                print(f"Lỗi: Không thể đọc file {file_path} bằng cả UTF-8 và UTF-16: {e_utf16}")
+                return glossary  # Trả về dict rỗng
         except FileNotFoundError:
             print(f"CẢNH BÁO: Không tìm thấy file từ điển: {file_path}")
+            return glossary
         except Exception as e:
-            print(f"Lỗi khi đọc file {file_path}: {e}")
+            print(f"Lỗi không xác định khi đọc file {file_path}: {e}")
+            return glossary
+
+        if content is None:
+            return glossary  # Trường hợp FileNotFoundError
+
+        # Xử lý nội dung đã đọc (tách ra khỏi khối try...except đọc file)
+        try:
+            for line in content.splitlines():
+                if '=' not in line:
+                    continue
+
+                parts = line.strip().split('=', 1)
+                if len(parts) == 2 and parts[0]:
+                    glossary[parts[0]] = parts[1]
+        except Exception as e:
+            print(f"Lỗi khi xử lý nội dung (đã đọc) của file {file_path}: {e}")
+
         return glossary
 
     def _load_dictionaries(self):
