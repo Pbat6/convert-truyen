@@ -21,7 +21,8 @@ class Translator:
         print("Đang tải từ điển từ DictionaryManager...")
         # Tải 1 lần duy nhất để tái sử dụng
         self.full_term_map = self.dictionary_manager.get_term_map()
-        self.ignored_phrases = self.dictionary_manager.get_ignored_phrases()
+        # self.ignored_phrases = self.dictionary_manager.get_ignored_phrases()
+
         # Sắp xếp các key từ dài đến ngắn. Đây là bước CỰC KỲ QUAN TRỌNG
         # để ưu tiên khớp "Trương Tam Phong" trước "Trương Tam".
         self.sorted_term_keys = sorted(self.full_term_map.keys(), key=len, reverse=True)
@@ -61,14 +62,14 @@ class Translator:
         Bản dịch tiếng Việt (Chỉ trả về phần văn bản đã dịch, không thêm lời chào hay giải thích):
         """
 
-    def _preprocess_text(self, text: str) -> str:
-        """
-        Tiền xử lý văn bản: Xóa các cụm từ rác (ignored).
-        """
-        print(f"Đang làm sạch văn bản, xoá {len(self.ignored_phrases)} cụm từ rác...")
-        for phrase in self.ignored_phrases:
-            text = text.replace(phrase, '')
-        return text
+    # def _preprocess_text(self, text: str) -> str:
+    #     """
+    #     Tiền xử lý văn bản: Xóa các cụm từ rác (ignored).
+    #     """
+    #     print(f"Đang làm sạch văn bản, xoá {len(self.ignored_phrases)} cụm từ rác...")
+    #     for phrase in self.ignored_phrases:
+    #         text = text.replace(phrase, '')
+    #     return text
 
     def _find_contextual_glossary(self, text: str) -> dict:
         """
@@ -92,8 +93,9 @@ class Translator:
         Hàm chính để dịch một đoạn văn bản (ví dụ: 1 chương truyện).
         """
 
-        # 1. (MỚI) Tiền xử lý, xoá rác
-        cleaned_text = self._preprocess_text(text_to_translate)
+        # 1. Tiền xử lý, xoá rác
+        # cleaned_text = self._preprocess_text(text_to_translate)
+        cleaned_text = text_to_translate
 
         # 2. (MỚI) Tìm các thuật ngữ liên quan DỰA TRÊN văn bản đã làm sạch
         context_glossary = self._find_contextual_glossary(cleaned_text)

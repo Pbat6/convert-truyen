@@ -150,7 +150,7 @@ def run_full_translation_process(
             translated_title = title
             vietnamese_text = full_translated_output
             try:
-                parts = full_translated_output.split('\n', 1)
+                parts = full_translated_output.split('\n\n', 1)
                 raw_translated_title = parts[0].strip()
                 pattern_to_remove = r'^(Chương|C|Q|Quyển)\s*\d+\s*[:\-–—\s]*\s*'
                 cleaned_title = re.sub(pattern_to_remove, '', raw_translated_title, flags=re.IGNORECASE).strip()
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     # Lấy ID truyện từ config (đã đọc từ .env)
     TTV_STORY_ID_TO_UPLOAD = config.TTV_STORY_ID
 
-    CHAPTER_LIMIT = 2  # Đặt là None để dịch/upload tất cả chương mới
+    CHAPTER_LIMIT = 180  # Đặt là None để dịch/upload tất cả chương mới
 
     if not TTV_STORY_ID_TO_UPLOAD:
         print("LỖI: TTV_STORY_ID chưa được Sét trong file .env. Vui lòng kiểm tra lại.")

@@ -13,11 +13,7 @@ DATA_DIR = BASE_DIR / "data"
 # Lấy API Key từ biến môi trường
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 # Chọn model (Flash rẻ và nhanh, phù hợp cho dịch thuật)
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
-
-# tập trung vào 2 file này cho việc convert hybrid
-VIETPHRASE_FILE = DATA_DIR / "VietPhrase.txt"
-NAMES_FILE = DATA_DIR / "Names.txt"
+GEMINI_MODEL_NAME = "gemini-2.5-flash" # (Đã sửa lại tên model cho chính xác hơn)
 
 TTV_API_URL = os.environ.get("TTV_API_URL")
 TTV_STORY_ID = os.environ.get("TTV_STORY_ID")
@@ -48,9 +44,9 @@ TERM_DICTIONARY_FILES = [
 ]
 
 # Các cụm từ trong file này sẽ bị xóa khỏi văn bản thô TRƯỚC KHI dịch
-IGNORED_PHRASES_FILES = [
-    DATA_DIR / "IgnoredChinesePhrases.txt"
-]
+# IGNORED_PHRASES_FILES = [
+#     DATA_DIR / "IgnoredChinesePhrases.txt"
+# ]
 
 # File này cần logic xử lý đặc biệt (thường là Regex)
 # Chúng ta định nghĩa sẵn, nhưng chưa implement logic tải (xem giải thích bên dưới)

@@ -30,19 +30,19 @@ class DictionaryManager:
 
         print(f"==> Tổng số 'Term' (Key=Value) đã tải: {len(self.term_map)}")
 
-        # 2. Tải Từ điển Ignored
-        self.ignored_phrases = set()
-        for file_path in config.IGNORED_PHRASES_FILES:
-            if not file_path.exists():
-                print(f"Cảnh báo: Không tìm thấy file từ điển: {file_path}")
-                continue
-
-            start_time = time.time()
-            count = self._load_ignored_phrases(file_path)
-            elapsed = time.time() - start_time
-            print(f"  - Đã tải {count} cụm từ 'Ignored' từ {file_path.name} (mất {elapsed:.2f}s)")
-
-        print(f"==> Tổng số 'Ignored Phrases' đã tải: {len(self.ignored_phrases)}")
+        # # 2. Tải Từ điển Ignored
+        # self.ignored_phrases = set()
+        # for file_path in config.IGNORED_PHRASES_FILES:
+        #     if not file_path.exists():
+        #         print(f"Cảnh báo: Không tìm thấy file từ điển: {file_path}")
+        #         continue
+        #
+        #     start_time = time.time()
+        #     count = self._load_ignored_phrases(file_path)
+        #     elapsed = time.time() - start_time
+        #     print(f"  - Đã tải {count} cụm từ 'Ignored' từ {file_path.name} (mất {elapsed:.2f}s)")
+        #
+        # print(f"==> Tổng số 'Ignored Phrases' đã tải: {len(self.ignored_phrases)}")
 
         # 3. Tải Từ điển Rules (LuatNhan.txt)
         # File này cần logic xử lý riêng (regex) nên chúng ta sẽ chưa implement
@@ -105,8 +105,8 @@ class DictionaryManager:
         """
         return self.term_map
 
-    def get_ignored_phrases(self):
-        """
-        Trả về MỘT set duy nhất chứa tất cả các cụm từ cần bỏ qua.
-        """
-        return self.ignored_phrases
+    # def get_ignored_phrases(self):
+    #     """
+    #     Trả về MỘT set duy nhất chứa tất cả các cụm từ cần bỏ qua.
+    #     """
+    #     return self.ignored_phrases
