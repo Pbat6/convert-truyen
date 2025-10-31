@@ -15,8 +15,18 @@ class Translator:
 
         genai.configure(api_key=GOOGLE_API_KEY)
         self.model = genai.GenerativeModel(GEMINI_MODEL_NAME)
+
+        # --- THAY ĐỔI: Lấy và lưu trữ các từ điển ngay khi khởi tạo ---
         self.dictionary_manager = dictionary_manager
-        print("Trình dịch AI (Gemini) đã sẵn sàng.")
+        print("Đang tải từ điển từ DictionaryManager...")
+        # Tải 1 lần duy nhất để tái sử dụng
+        self.full_term_map = self.dictionary_manager.get_term_map()
+        self.ignored_phrases = self.dictionary_manager.get_ignored_phrases()
+        # Sắp xếp các key từ dài đến ngắn. Đây là bước CỰC KỲ QUAN TRỌNG
+        # để ưu tiên khớp "Trương Tam Phong" trước "Trương Tam".
+        self.sorted_term_keys = sorted(self.full_term_map.keys(), key=len, reverse=True)
+        print("Trình dịch AI (Gemini) đã sẵn sàng (đã nạp từ điển).")
+        # --- KẾT THÚC THAY ĐỔI ---
 
     def _build_prompt(self, text_chunk: str, glossary: dict) -> str:
         """Hàm nội bộ để xây dựng prompt hoàn chỉnh"""
@@ -51,26 +61,54 @@ class Translator:
         Bản dịch tiếng Việt (Chỉ trả về phần văn bản đã dịch, không thêm lời chào hay giải thích):
         """
 
+    def _preprocess_text(self, text: str) -> str:
+        """
+        Tiền xử lý văn bản: Xóa các cụm từ rác (ignored).
+        """
+        print(f"Đang làm sạch văn bản, xoá {len(self.ignored_phrases)} cụm từ rác...")
+        for phrase in self.ignored_phrases:
+            text = text.replace(phrase, '')
+        return text
+
+    def _find_contextual_glossary(self, text: str) -> dict:
+        """
+        Tái tạo lại logic "find_contextual_terms".
+        Tìm các thuật ngữ trong 'full_term_map' có xuất hiện trong văn bản.
+        """
+        print("Đang phân tích thuật ngữ theo ngữ cảnh...")
+        context_glossary = {}
+
+        # Chúng ta dùng self.sorted_term_keys đã được sắp xếp lúc khởi tạo
+        # để đảm bảo ưu tiên khớp cụm từ dài trước
+        for key in self.sorted_term_keys:
+            if key in text:
+                context_glossary[key] = self.full_term_map[key]
+
+        print(f"Đã tìm thấy {len(context_glossary)} thuật ngữ liên quan.")
+        return context_glossary
+
     def translate_chapter(self, text_to_translate: str) -> str:
         """
         Hàm chính để dịch một đoạn văn bản (ví dụ: 1 chương truyện).
         """
-        print("Đang phân tích thuật ngữ trong văn bản...")
-        # 1. Tìm các thuật ngữ liên quan
-        context_glossary = self.dictionary_manager.find_contextual_terms(text_to_translate)
-        print(f"Đã tìm thấy {len(context_glossary)} thuật ngữ liên quan.")
 
-        # 2. Xây dựng prompt
-        prompt = self._build_prompt(text_to_translate, context_glossary)
+        # 1. (MỚI) Tiền xử lý, xoá rác
+        cleaned_text = self._preprocess_text(text_to_translate)
 
-        # 3. Gọi API
+        # 2. (MỚI) Tìm các thuật ngữ liên quan DỰA TRÊN văn bản đã làm sạch
+        context_glossary = self._find_contextual_glossary(cleaned_text)
+
+        # 3. (SỬA ĐỔI) Xây dựng prompt với văn bản đã làm sạch
+        prompt = self._build_prompt(cleaned_text, context_glossary)
+
+        # 4. Gọi API
         print("Đang gửi yêu cầu đến Gemini API...")
         try:
             response = self.model.generate_content(prompt)
             translated_text = response.text.strip()
 
+            # (Giữ nguyên logic format)
             # 1. Tách văn bản thành các đoạn dựa trên MỘT HOẶC NHIỀU ký tự newline
-            #    Điều này xử lý cả trường hợp model trả về '\n' và '\n\n'
             paragraphs = re.split(r'\n+', translated_text)
 
             # 2. Lọc ra các đoạn rỗng (nếu có)
@@ -83,4 +121,4 @@ class Translator:
 
         except Exception as e:
             print(f"Lỗi khi gọi API: {e}")
-            return f"Lỗi Dịch Thuật: {e}"
+            raise Exception(f"Lỗi Gemini API: {e}")

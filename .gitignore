@@ -2,8 +2,8 @@
 __pycache__/
 *.pyc
 .venv
+progress
 progress.json
-dich
 
 # Environment variables
 .env

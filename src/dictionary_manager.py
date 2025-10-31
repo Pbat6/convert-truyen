@@ -1,4 +1,6 @@
-from .config import VIETPHRASE_FILE, NAMES_FILE
+import src.config as config
+import time
+from pathlib import Path
 
 
 class DictionaryManager:
@@ -8,84 +10,103 @@ class DictionaryManager:
     """
 
     def __init__(self):
-        print("Bắt đầu nạp từ điển vào bộ nhớ...")
-        self.combined_glossary = {}
-        self.sorted_keys = []
-        self._load_dictionaries()
-        print(f"Đã nạp thành công {len(self.combined_glossary)} thuật ngữ.")
+        """
+        Khởi tạo và tự động tải tất cả các từ điển được định nghĩa trong config.
+        """
+        print("--- Bắt đầu tải các từ điển ---")
 
-    def _load_key_value_file(self, file_path):
-        """Hàm nội bộ để đọc file .txt (dạng key=value)"""
-        glossary = {}
-        content = None
+        self.term_map = {}
+        # Tải theo thứ tự ngược lại (reversed)
+        # để file ưu tiên cao (ở đầu list) ghi đè lên các file ưu tiên thấp (ở cuối list).
+        for file_path in reversed(config.TERM_DICTIONARY_FILES):
+            if not file_path.exists():
+                print(f"Cảnh báo: Không tìm thấy file từ điển: {file_path}")
+                continue
 
-        # Thử đọc file với các encoding phổ biến
+            start_time = time.time()
+            count = self._load_term_dictionary(file_path)
+            elapsed = time.time() - start_time
+            print(f"  - Đã tải {count} terms từ {file_path.name} (mất {elapsed:.2f}s)")
+
+        print(f"==> Tổng số 'Term' (Key=Value) đã tải: {len(self.term_map)}")
+
+        # 2. Tải Từ điển Ignored
+        self.ignored_phrases = set()
+        for file_path in config.IGNORED_PHRASES_FILES:
+            if not file_path.exists():
+                print(f"Cảnh báo: Không tìm thấy file từ điển: {file_path}")
+                continue
+
+            start_time = time.time()
+            count = self._load_ignored_phrases(file_path)
+            elapsed = time.time() - start_time
+            print(f"  - Đã tải {count} cụm từ 'Ignored' từ {file_path.name} (mất {elapsed:.2f}s)")
+
+        print(f"==> Tổng số 'Ignored Phrases' đã tải: {len(self.ignored_phrases)}")
+
+        # 3. Tải Từ điển Rules (LuatNhan.txt)
+        # File này cần logic xử lý riêng (regex) nên chúng ta sẽ chưa implement
+        # Khi nào cần, bạn có thể thêm hàm _load_rule_dictionary
+        print("Lưu ý: LuatNhan.txt (Rule Dictionary) đã được nhận diện nhưng chưa implement logic tải.")
+        print("--- Tải từ điển hoàn tất ---")
+
+    def _load_term_dictionary(self, file_path: Path) -> int:
+        """
+        Tải file từ điển (định dạng 'Key=Value\n') vào self.term_map.
+        Ghi đè (overwrite) các key đã tồn tại (đây là lý do chúng ta tải ngược).
+        """
+        count = 0
         try:
-            # 1. Thử UTF-8 (chuẩn)
             with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-        except UnicodeDecodeError as e:
-            # 2. Nếu UTF-8 lỗi (ví dụ: '0xff'), thử UTF-16
-            # Lỗi '0xff' ở vị trí 0 thường là BOM của UTF-16
-            print(f"Cảnh báo: Đọc {file_path} bằng UTF-8 thất bại. Thử lại bằng UTF-16...")
-            try:
-                # 'utf-16' sẽ tự động phát hiện BOM (LE hoặc BE)
-                with open(file_path, 'r', encoding='utf-16') as f:
-                    content = f.read()
-                print(f"Đã đọc thành công {file_path} bằng UTF-16.")
-            except Exception as e_utf16:
-                print(f"Lỗi: Không thể đọc file {file_path} bằng cả UTF-8 và UTF-16: {e_utf16}")
-                return glossary  # Trả về dict rỗng
-        except FileNotFoundError:
-            print(f"CẢNH BÁO: Không tìm thấy file từ điển: {file_path}")
-            return glossary
+                for line in f:
+                    line = line.strip()
+                    # Bỏ qua dòng trống hoặc dòng comment (thường bắt đầu bằng #)
+                    if not line or line.startswith('#'):
+                        continue
+
+                    # Tách Key=Value
+                    parts = line.split('=', 1)
+                    if len(parts) == 2:
+                        key, value = parts[0].strip(), parts[1].strip()
+                        # Đảm bảo key không rỗng và value không rỗng
+                        if key and value:
+                            self.term_map[key] = value
+                            count += 1
+                    # Bỏ qua các dòng không đúng định dạng (ví dụ: file LacViet có dòng ✚[...])
+                    elif file_path.name == "LacViet.txt" and line.startswith('✚'):
+                        # Logic đặc thù nếu cần xử lý LacViet, tạm thời bỏ qua
+                        pass
+
         except Exception as e:
-            print(f"Lỗi không xác định khi đọc file {file_path}: {e}")
-            return glossary
+            print(f"Lỗi khi đọc file {file_path.name}: {e}")
+        return count
 
-        if content is None:
-            return glossary  # Trường hợp FileNotFoundError
-
-        # Xử lý nội dung đã đọc (tách ra khỏi khối try...except đọc file)
+    def _load_ignored_phrases(self, file_path: Path) -> int:
+        """
+        Tải file từ điển ignored (mỗi dòng là một cụm từ) vào self.ignored_phrases.
+        """
+        count = 0
         try:
-            for line in content.splitlines():
-                if '=' not in line:
-                    continue
-
-                parts = line.strip().split('=', 1)
-                if len(parts) == 2 and parts[0]:
-                    glossary[parts[0]] = parts[1]
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    phrase = line.strip()
+                    if phrase and not phrase.startswith('#'):
+                        self.ignored_phrases.add(phrase)
+                        count += 1
         except Exception as e:
-            print(f"Lỗi khi xử lý nội dung (đã đọc) của file {file_path}: {e}")
+            print(f"Lỗi khi đọc file {file_path.name}: {e}")
+        return count
 
-        return glossary
+    # --- Các hàm Getter ---
 
-    def _load_dictionaries(self):
-        """Tải và gộp các từ điển chính (VietPhrase và Names)"""
-        vietphrase = self._load_key_value_file(VIETPHRASE_FILE)
-        names = self._load_key_value_file(NAMES_FILE)
-
-        # Gộp 2 từ điển, ưu tiên file Names (ghi đè lên VietPhrase nếu trùng)
-        self.combined_glossary = {**vietphrase, **names}
-
-        # Tối ưu hóa: Sắp xếp các key từ dài nhất đến ngắn nhất
-        # Việc này ĐẢM BẢO "Lý Bạch" được khớp trước "Lý"
-        self.sorted_keys = sorted(self.combined_glossary.keys(), key=len, reverse=True)
-
-    def find_contextual_terms(self, text: str) -> dict:
+    def get_term_map(self):
         """
-        Quét văn bản đầu vào và trích xuất các thuật ngữ
-        có trong từ điển.
+        Trả về MỘT từ điển duy nhất đã gộp tất cả các file.
         """
-        context_glossary = {}
-        # Tạo bản sao để tránh thay đổi text gốc (nếu cần)
-        temp_text = text
+        return self.term_map
 
-        for key in self.sorted_keys:
-            if key in temp_text:
-                # Nếu tìm thấy, thêm vào glossary và xóa khỏi temp_text
-                # để tránh các cụm từ con bị khớp nhầm
-                context_glossary[key] = self.combined_glossary[key]
-                temp_text = temp_text.replace(key, "")
-
-        return context_glossary
+    def get_ignored_phrases(self):
+        """
+        Trả về MỘT set duy nhất chứa tất cả các cụm từ cần bỏ qua.
+        """
+        return self.ignored_phrases
