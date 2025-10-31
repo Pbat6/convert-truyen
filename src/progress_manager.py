@@ -2,8 +2,6 @@ import os
 import json
 from pathlib import Path
 
-# (Đã loại bỏ các hằng số BASE_DIR và STATE_FILE toàn cục)
-
 class ProgressManager:
     """
     Quản lý việc đọc/ghi file progress.json CỤ THỂ cho từng bộ truyện.

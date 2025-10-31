@@ -27,18 +27,6 @@ def initialize_services_stateless():
         print(f"Lỗi nghiêm trọng khi khởi tạo dịch vụ: {e}")
         return None, None, None
 
-
-def get_book_id_from_url(url: str) -> str:
-    """
-    Tạo một ID duy nhất cho truyện từ URL.
-    Ví dụ: 'https://uukanshu.cc/book/421/' -> 'book_421'
-    """
-    match = re.search(r'/book/(\d+)', url)
-    if match:
-        return f"book_{match.group(1)}"
-    return re.sub(r'[^a-zA-Z0-9]', '_', url.split('//')[-1])
-
-
 def run_full_translation_process(
         book_url: str,
         base_output_dir: str,  # Giữ lại để lưu progress.json
@@ -59,18 +47,15 @@ def run_full_translation_process(
         print("Không thể khởi động. Thoát.")
         return
 
-    # 1. Xác định ID và thư mục output riêng cho truyện này
-    # Vẫn cần thư mục này để lưu file progress.json
-    book_id = get_book_id_from_url(book_url)
+    # Xác định ID và thư mục output riêng cho truyện này
+    book_id = "book_" + config.TTV_STORY_ID
     book_output_dir = os.path.join(base_output_dir, book_id)
     os.makedirs(book_output_dir, exist_ok=True)
 
-    # --- THAY ĐỔI QUAN TRỌNG ---
     # Đường dẫn file progress riêng cho truyện này
     progress_file_path = os.path.join(book_output_dir, 'progress.json')
     # Khởi tạo ProgressManager với đường dẫn cụ thể
     progress_manager = ProgressManager(state_file=progress_file_path)
-    # -------------------------
 
     print(f"--- Tool đã sẵn sàng! ---")
     print(f"Đang xử lý truyện: {book_id} (URL: {book_url})")
