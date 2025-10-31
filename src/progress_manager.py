@@ -1,59 +1,73 @@
-# src/progress_manager.py
-import json
 import os
-from datetime import datetime
+import json
+from pathlib import Path
 
+# (Đã loại bỏ các hằng số BASE_DIR và STATE_FILE toàn cục)
 
 class ProgressManager:
     """
-    Quản lý trạng thái dịch của các bộ truyện.
-    Sử dụng file 'progress.json' để lưu "bookmark".
+    Quản lý việc đọc/ghi file progress.json CỤ THỂ cho từng bộ truyện.
     """
 
-    def __init__(self, state_file='progress.json'):
+    def __init__(self, state_file: str):
+        """
+        Khởi tạo ProgressManager với một đường dẫn file state cụ thể.
+
+        Args:
+            state_file (str): Đường dẫn đầy đủ đến file progress.json
+                              (ví dụ: /.../progress/book_123/progress.json)
+        """
         self.state_file = state_file
+        print(f"ProgressManager được khởi tạo. Sẽ sử dụng file: {self.state_file}")
         self.progress_data = self._load_progress()
-        print(f"Quản lý tiến độ đã sẵn sàng. (Sử dụng file: {self.state_file})")
 
     def _load_progress(self) -> dict:
-        """Tải file JSON. Trả về dict rỗng nếu file không tồn tại."""
-        if os.path.exists(self.state_file):
-            try:
-                with open(self.state_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except json.JSONDecodeError:
-                print(f"Cảnh báo: File {self.state_file} bị lỗi. Sẽ tạo file mới.")
-                return {}
-        return {}
+        """
+        Tải file JSON chứa tiến độ.
+        """
+        try:
+            with open(self.state_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"Đã tải tiến độ từ {self.state_file}")
+                return data
+        except FileNotFoundError:
+            print(f"Không tìm thấy file tiến độ {self.state_file}. Sẽ tạo file mới.")
+            return {}
+        except json.JSONDecodeError:
+            print(f"LỖI: File tiến độ {self.state_file} bị hỏng. Sẽ tạo file mới.")
+            return {}
+        except Exception as e:
+            print(f"Lỗi không xác định khi tải {self.state_file}: {e}")
+            return {}
 
     def _save_progress(self):
-        """Lưu dữ liệu hiện tại vào file JSON."""
+        """
+        Lưu dữ liệu tiến độ hiện tại vào file JSON.
+        """
         try:
+            # Đảm bảo thư mục cha tồn tại (quan trọng khi chạy lần đầu)
+            os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
             with open(self.state_file, 'w', encoding='utf-8') as f:
                 json.dump(self.progress_data, f, indent=4, ensure_ascii=False)
         except Exception as e:
-            print(f"Lỗi nghiêm trọng khi lưu tiến độ: {e}")
+            print(f"LỖI NGHIÊM TRỌNG: Không thể lưu tiến độ vào {self.state_file}: {e}")
 
     def get_last_processed_url(self, book_id: str) -> str | None:
         """
-        Lấy URL của chương cuối cùng đã được xử lý cho một book_id.
+        Lấy URL của chương cuối cùng đã xử lý cho book_id.
         """
-        if book_id in self.progress_data:
-            return self.progress_data[book_id].get('last_processed_url')
-        return None
+        return self.progress_data.get(book_id, {}).get('last_processed_url')
 
-    def update_progress(self, book_id: str, chapter_info: dict, main_book_url: str):
+    def update_progress(self, book_id: str, chapter_info: dict, book_url: str):
         """
-        Cập nhật "bookmark" cho một book_id sau khi dịch xong 1 chương.
+        Cập nhật tiến độ cho book_id với thông tin chương mới nhất.
         """
         if book_id not in self.progress_data:
             self.progress_data[book_id] = {}
 
-        # Cập nhật thông tin
-        self.progress_data[book_id]['main_url'] = main_book_url
         self.progress_data[book_id]['last_processed_url'] = chapter_info['url']
         self.progress_data[book_id]['last_processed_title'] = chapter_info['title']
-        self.progress_data[book_id]['last_processed_timestamp'] = datetime.now().isoformat()
+        self.progress_data[book_id]['book_url'] = book_url
+        self.progress_data[book_id]['last_updated'] = os.path.getmtime(self.state_file) if os.path.exists(self.state_file) else 0
 
-        # Lưu thay đổi ngay lập tức
         self._save_progress()

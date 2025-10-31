@@ -10,22 +10,22 @@ from src.progress_manager import ProgressManager
 from src.uploader import TangThuvienClient
 import src.config as config
 
-def initialize_services():
+def initialize_services_stateless():
     """
-    Khởi tạo tất cả các dịch vụ cần thiết (Từ điển, Translator, Scraper, Progress, Uploader).
+    Khởi tạo các dịch vụ "stateless" (không phụ thuộc vào từng bộ truyện).
+    ProgressManager (stateful) sẽ được khởi tạo sau.
     """
-    print("--- Bắt đầu khởi tạo Tool Convert Hybrid ---")
+    print("--- Bắt đầu khởi tạo các dịch vụ Stateless (Dict, Translator, Scraper, Uploader) ---")
     try:
         dict_manager = DictionaryManager()
         translator = Translator(dictionary_manager=dict_manager)
         scraper = Scraper()
-        progress_manager = ProgressManager()
         uploader = TangThuvienClient()
 
-        return translator, scraper, progress_manager, uploader
+        return translator, scraper, uploader
     except Exception as e:
         print(f"Lỗi nghiêm trọng khi khởi tạo dịch vụ: {e}")
-        return None, None, None, None
+        return None, None, None
 
 
 def get_book_id_from_url(url: str) -> str:
@@ -54,8 +54,8 @@ def run_full_translation_process(
         ttv_story_id (str): ID của truyện trên Tang Thư Viện để upload.
         chapter_limit (int | None): Số chương tối đa cần dịch/upload.
     """
-    translator, scraper, progress_manager, uploader = initialize_services()  # <--- THAY ĐỔI
-    if not all([translator, scraper, progress_manager, uploader]):  # <--- THAY ĐỔI
+    translator, scraper, uploader = initialize_services_stateless()
+    if not all([translator, scraper, uploader]):
         print("Không thể khởi động. Thoát.")
         return
 
@@ -65,10 +65,17 @@ def run_full_translation_process(
     book_output_dir = os.path.join(base_output_dir, book_id)
     os.makedirs(book_output_dir, exist_ok=True)
 
+    # --- THAY ĐỔI QUAN TRỌNG ---
+    # Đường dẫn file progress riêng cho truyện này
+    progress_file_path = os.path.join(book_output_dir, 'progress.json')
+    # Khởi tạo ProgressManager với đường dẫn cụ thể
+    progress_manager = ProgressManager(state_file=progress_file_path)
+    # -------------------------
+
     print(f"--- Tool đã sẵn sàng! ---")
     print(f"Đang xử lý truyện: {book_id} (URL: {book_url})")
     print(f"Sẽ upload chương lên TTV Story ID: {ttv_story_id}")
-    print(f"Sẽ lưu tiến độ vào: {book_output_dir}")
+    print(f"Sẽ lưu tiến độ vào: {progress_file_path}")
 
     # 2. Lấy danh sách *tất cả* chương
     all_chapters = scraper.get_chapter_links(book_url)
@@ -102,8 +109,7 @@ def run_full_translation_process(
         else:
             print(f"Tìm thấy {len(chapters_to_process)} chương mới.")
 
-    # 4. (LOGIC MỚI) Áp dụng giới hạn số chương (NẾU CÓ)
-    # (Giữ nguyên logic này)
+    # Áp dụng giới hạn số chương (NẾU CÓ)
     if chapter_limit is not None and chapter_limit > 0:
         total_available = len(chapters_to_process)
         if total_available == 0:
@@ -224,10 +230,10 @@ if __name__ == "__main__":
     # Lấy ID truyện từ config (đã đọc từ .env)
     TTV_STORY_ID_TO_UPLOAD = config.TTV_STORY_ID
 
-    CHAPTER_LIMIT = 180  # Đặt là None để dịch/upload tất cả chương mới
+    CHAPTER_LIMIT = 1  # Đặt là None để dịch/upload tất cả chương mới
 
     if not TTV_STORY_ID_TO_UPLOAD:
-        print("LỖI: TTV_STORY_ID chưa được Sét trong file .env. Vui lòng kiểm tra lại.")
+        print("LỖI: TTV_STORY_ID chưa được Set trong file .env. Vui lòng kiểm tra lại.")
     else:
         run_full_translation_process(
             BOOK_MAIN_URL,
