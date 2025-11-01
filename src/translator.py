@@ -1,4 +1,5 @@
 import re
+import time
 import google.generativeai as genai
 from .config import GEMINI_MODEL_NAME
 from .dictionary_manager import DictionaryManager
@@ -13,16 +14,14 @@ class Translator:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY không được cung cấp. Vui lòng kiểm tra file books_to_run.json")
 
-        # === THAY ĐỔI: Dùng api_key được truyền vào ===
+        # Dùng api_key được truyền vào
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(GEMINI_MODEL_NAME)
 
-        # --- (Phần còn lại giữ nguyên) ---
         self.dictionary_manager = dictionary_manager
         print("Đang tải từ điển từ DictionaryManager...")
         # Tải 1 lần duy nhất để tái sử dụng
         self.full_term_map = self.dictionary_manager.get_term_map()
-        # self.ignored_phrases = self.dictionary_manager.get_ignored_phrases()
 
         # Sắp xếp các key từ dài đến ngắn.
         self.sorted_term_keys = sorted(self.full_term_map.keys(), key=len, reverse=True)
@@ -61,15 +60,6 @@ class Translator:
         Bản dịch tiếng Việt (Chỉ trả về phần văn bản đã dịch, không thêm lời chào hay giải thích):
         """
 
-    # def _preprocess_text(self, text: str) -> str:
-    #     """
-    #     Tiền xử lý văn bản: Xóa các cụm từ rác (ignored).
-    #     """
-    #     print(f"Đang làm sạch văn bản, xoá {len(self.ignored_phrases)} cụm từ rác...")
-    #     for phrase in self.ignored_phrases:
-    #         text = text.replace(phrase, '')
-    #     return text
-
     def _find_contextual_glossary(self, text: str) -> dict:
         """
         Tái tạo lại logic "find_contextual_terms".
@@ -92,34 +82,59 @@ class Translator:
         Hàm chính để dịch một đoạn văn bản (ví dụ: 1 chương truyện).
         """
 
-        # 1. Tiền xử lý, xoá rác
-        # cleaned_text = self._preprocess_text(text_to_translate)
-        cleaned_text = text_to_translate
 
-        # 2. (MỚI) Tìm các thuật ngữ liên quan DỰA TRÊN văn bản đã làm sạch
-        context_glossary = self._find_contextual_glossary(cleaned_text)
 
-        # 3. (SỬA ĐỔI) Xây dựng prompt với văn bản đã làm sạch
-        prompt = self._build_prompt(cleaned_text, context_glossary)
+        # Tìm các thuật ngữ liên quan DỰA TRÊN văn bản
+        context_glossary = self._find_contextual_glossary(text_to_translate)
+
+        # Xây dựng prompt với văn bản
+        prompt = self._build_prompt(text_to_translate, context_glossary)
+
+        primary_model_name = GEMINI_MODEL_NAME  # "gemini-2.5-flash"
+        fallback_model_name = "gemini-2.0-flash"  # Model dự phòng theo yêu cầu
+
+        def format_response(translated_text: str) -> str:
+            """Hàm tiện ích nội bộ để format text trả về."""
+            paragraphs = re.split(r'\n+', translated_text.strip())
+            non_empty_paragraphs = [p for p in paragraphs if p.strip()]
+            return '\n\n'.join(non_empty_paragraphs)
 
         # 4. Gọi API
-        print("Đang gửi yêu cầu đến Gemini API...")
+        print(f"Đang gửi yêu cầu đến Gemini API (Model: {primary_model_name})... (Lần 1)")
         try:
             response = self.model.generate_content(prompt)
-            translated_text = response.text.strip()
-
-            # (Giữ nguyên logic format)
-            # 1. Tách văn bản thành các đoạn dựa trên MỘT HOẶC NHIỀU ký tự newline
-            paragraphs = re.split(r'\n+', translated_text)
-
-            # 2. Lọc ra các đoạn rỗng (nếu có)
-            non_empty_paragraphs = [p for p in paragraphs if p.strip()]
-
-            # 3. Nối các đoạn lại với nhau, đảm bảo mỗi đoạn cách nhau 2 dấu newline
-            formatted_text = '\n\n'.join(non_empty_paragraphs)
-
-            return formatted_text
+            return format_response(response.text)
 
         except Exception as e:
-            print(f"Lỗi khi gọi API: {e}")
-            raise Exception(f"Lỗi Gemini API: {e}")
+            error_message = str(e)
+            print(f"Lỗi lần 1 (Model: {primary_model_name}): {error_message}")
+
+            # --- XỬ LÝ LỖI ---
+
+            # TRƯỜNG HỢP 1: Lỗi 500 -> Chuyển sang model dự phòng
+            if "500" in error_message:
+                print(f"Gặp lỗi 500. Chuyển sang model '{fallback_model_name}' và thử lại (Lần 2)...")
+                try:
+                    # Khởi tạo model dự phòng
+                    fallback_model = genai.GenerativeModel(fallback_model_name)
+                    response = fallback_model.generate_content(prompt)
+                    return format_response(response.text)
+
+                except Exception as e2:
+                    print(f"Lỗi lần 2 (Model: {fallback_model_name}): {e2}")
+                    # Thất bại cả 2 lần -> Báo lỗi
+                    raise Exception(f"Lỗi Gemini API (thất bại sau khi thử lại với model dự phòng): {e2}")
+
+            # TRƯỜNG HỢP 2: Lỗi khác -> Sleep 3s và thử lại với CÙNG model
+            else:
+                print(f"Gặp lỗi khác. Chờ 3 giây và thử lại với CÙNG model (Lần 2)...")
+                try:
+                    time.sleep(3)
+                    # Thử lại với model chính (self.model)
+                    response = self.model.generate_content(prompt)
+                    return format_response(response.text)
+
+                except Exception as e3:
+                    print(f"Lỗi lần 2 (Model: {primary_model_name} sau khi sleep): {e3}")
+                    # Thất bại cả 2 lần -> Báo lỗi
+                    raise Exception(f"Lỗi Gemini API (thất bại sau khi thử lại): {e3}")

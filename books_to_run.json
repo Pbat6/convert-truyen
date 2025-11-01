@@ -2,19 +2,19 @@
   {
     "book_url": "https://uukanshu.cc/book/25398/",
     "ttv_story_id": "39072",
-    "chapter_limit": 0,
+    "chapter_limit": 150,
     "google_api_key": "AIzaSyDwObqawen2HzOMa9SMn152A6C2MscC9kQ"
   },
   {
     "book_url": "https://uukanshu.cc/book/21897/",
     "ttv_story_id": "39075",
-    "chapter_limit": 0,
+    "chapter_limit": 150,
     "google_api_key": "AIzaSyDGX3VcJ6iowf0Zg0du-JDCBzxsGDNjqhE"
   },
   {
     "book_url": "https://uukanshu.cc/book/25391/",
     "ttv_story_id": "39076",
-    "chapter_limit": 1,
+    "chapter_limit": 150,
     "google_api_key": "AIzaSyA6NHA-FKWA7FQ83fR8eKhQrooY01BT7D4"
   }
 ]
