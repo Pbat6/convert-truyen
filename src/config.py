@@ -10,10 +10,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Đường dẫn đến thư mục 'data'
 DATA_DIR = BASE_DIR / "data"
 
-# Lấy API Key từ biến môi trường
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 # Chọn model (Flash rẻ và nhanh, phù hợp cho dịch thuật)
-GEMINI_MODEL_NAME = "gemini-2.5-flash" # (Đã sửa lại tên model cho chính xác hơn)
+GEMINI_MODEL_NAME = "gemini-2.5-flash" #
 
 TTV_API_URL = os.environ.get("TTV_API_URL")
 TTV_STORY_ID = os.environ.get("TTV_STORY_ID")

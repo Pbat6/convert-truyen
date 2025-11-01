@@ -1,6 +1,6 @@
 import re
 import google.generativeai as genai
-from .config import GOOGLE_API_KEY, GEMINI_MODEL_NAME
+from .config import GEMINI_MODEL_NAME
 from .dictionary_manager import DictionaryManager
 
 
@@ -9,25 +9,24 @@ class Translator:
     Lớp này xử lý việc xây dựng prompt và gọi Gemini API.
     """
 
-    def __init__(self, dictionary_manager: DictionaryManager):
-        if not GOOGLE_API_KEY:
-            raise ValueError("GOOGLE_API_KEY không được tìm thấy. Vui lòng kiểm tra file .env")
+    def __init__(self, dictionary_manager: DictionaryManager, api_key: str):
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY không được cung cấp. Vui lòng kiểm tra file books_to_run.json")
 
-        genai.configure(api_key=GOOGLE_API_KEY)
+        # === THAY ĐỔI: Dùng api_key được truyền vào ===
+        genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(GEMINI_MODEL_NAME)
 
-        # --- THAY ĐỔI: Lấy và lưu trữ các từ điển ngay khi khởi tạo ---
+        # --- (Phần còn lại giữ nguyên) ---
         self.dictionary_manager = dictionary_manager
         print("Đang tải từ điển từ DictionaryManager...")
         # Tải 1 lần duy nhất để tái sử dụng
         self.full_term_map = self.dictionary_manager.get_term_map()
         # self.ignored_phrases = self.dictionary_manager.get_ignored_phrases()
 
-        # Sắp xếp các key từ dài đến ngắn. Đây là bước CỰC KỲ QUAN TRỌNG
-        # để ưu tiên khớp "Trương Tam Phong" trước "Trương Tam".
+        # Sắp xếp các key từ dài đến ngắn.
         self.sorted_term_keys = sorted(self.full_term_map.keys(), key=len, reverse=True)
         print("Trình dịch AI (Gemini) đã sẵn sàng (đã nạp từ điển).")
-        # --- KẾT THÚC THAY ĐỔI ---
 
     def _build_prompt(self, text_chunk: str, glossary: dict) -> str:
         """Hàm nội bộ để xây dựng prompt hoàn chỉnh"""

@@ -10,51 +10,38 @@ from src.progress_manager import ProgressManager
 from src.uploader import TangThuvienClient
 import src.config as config
 
-def initialize_services_stateless():
-    """
-    Khởi tạo các dịch vụ "stateless" (không phụ thuộc vào từng bộ truyện).
-    ProgressManager (stateful) sẽ được khởi tạo sau.
-    """
-    print("--- Bắt đầu khởi tạo các dịch vụ Stateless (Dict, Translator, Scraper, Uploader) ---")
-    try:
-        dict_manager = DictionaryManager()
-        translator = Translator(dictionary_manager=dict_manager)
-        scraper = Scraper()
-        uploader = TangThuvienClient()
-
-        return translator, scraper, uploader
-    except Exception as e:
-        print(f"Lỗi nghiêm trọng khi khởi tạo dịch vụ: {e}")
-        return None, None, None
-
 def run_full_translation_process(
+        dict_manager: DictionaryManager,
+        scraper: Scraper,
+        uploader: TangThuvienClient,
         book_url: str,
-        base_output_dir: str,  # Giữ lại để lưu progress.json
-        ttv_story_id: str,  # <--- THAY ĐỔI: ID truyện trên TTV
-        chapter_limit: int | None = None
+        base_output_dir: str,
+        ttv_story_id: str,
+        chapter_limit: int | None,
+        google_api_key: str
 ):
     """
     Hàm chính điều phối toàn bộ quá trình.
-
-    Args:
-        book_url (str): URL trang mục lục của truyện.
-        base_output_dir (str): Thư mục gốc để lưu file progress.
-        ttv_story_id (str): ID của truyện trên Tang Thư Viện để upload.
-        chapter_limit (int | None): Số chương tối đa cần dịch/upload.
+    Hàm này giờ "nhận" các dịch vụ đã được khởi tạo.
     """
-    translator, scraper, uploader = initialize_services_stateless()
-    if not all([translator, scraper, uploader]):
-        print("Không thể khởi động. Thoát.")
-        return
 
-    # Xác định ID và thư mục output riêng cho truyện này
-    book_id = "book_" + config.TTV_STORY_ID
+    try:
+        # print(f"Đang khởi tạo Translator với API key cho truyện {ttv_story_id}...")
+        # (Bỏ print để đỡ nhiễu log)
+        translator = Translator(dictionary_manager=dict_manager, api_key=google_api_key)
+    except Exception as e:
+        print(f"Lỗi khi khởi tạo Translator (kiểm tra API key?): {e}")
+        return
+        # === KẾT THÚC THAY ĐỔI ===
+
+        # Xác định ID và thư mục output riêng cho truyện này
+    book_id = "book_" + ttv_story_id
     book_output_dir = os.path.join(base_output_dir, book_id)
     os.makedirs(book_output_dir, exist_ok=True)
 
     # Đường dẫn file progress riêng cho truyện này
     progress_file_path = os.path.join(book_output_dir, 'progress.json')
-    # Khởi tạo ProgressManager với đường dẫn cụ thể
+    # Khởi tạo ProgressManager (thằng này stateful nhưng theo file, nên tạo mới mỗi lần)
     progress_manager = ProgressManager(state_file=progress_file_path)
 
     print(f"--- Tool đã sẵn sàng! ---")
@@ -174,10 +161,6 @@ def run_full_translation_process(
                 print("Bỏ qua chương này do lỗi logic index.")
                 continue
 
-            # Thêm tiêu đề vào đầu nội dung (nhiều truyện trên TTV làm vậy)
-            # BẠN CÓ THỂ TÙY CHỈNH DÒNG NÀY
-            # final_content_to_upload = f"{translated_title}\n\n{vietnamese_text}"
-
             # Thực hiện upload
             success = uploader.upload_chapter(
                 story_id=ttv_story_id,
@@ -205,24 +188,3 @@ def run_full_translation_process(
         print(f"\n--- KẾT THÚC BATCH CHO TRUYỆN {book_id} ---")
 
     print(f"\n--- HOÀN TẤT BATCH CHO TRUYỆN {book_id} ---")
-
-if __name__ == "__main__":
-    BOOK_MAIN_URL = 'https://uukanshu.cc/book/25398/'
-
-    # Đường dẫn này VẪN CẦN THIẾT để lưu file progress.json
-    BASE_OUTPUT_DIRECTORY = "/home/thepham/Desktop/disk/convert/progress"
-
-    # Lấy ID truyện từ config (đã đọc từ .env)
-    TTV_STORY_ID_TO_UPLOAD = config.TTV_STORY_ID
-
-    CHAPTER_LIMIT = 1  # Đặt là None để dịch/upload tất cả chương mới
-
-    if not TTV_STORY_ID_TO_UPLOAD:
-        print("LỖI: TTV_STORY_ID chưa được Set trong file .env. Vui lòng kiểm tra lại.")
-    else:
-        run_full_translation_process(
-            BOOK_MAIN_URL,
-            BASE_OUTPUT_DIRECTORY,
-            TTV_STORY_ID_TO_UPLOAD,
-            chapter_limit=CHAPTER_LIMIT
-        )
