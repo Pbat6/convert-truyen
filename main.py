@@ -1,14 +1,16 @@
 # main.py
-
 import sys
 import os
 import re
+import argparse
+import json  # Thêm import json
+
+# Import các dịch vụ
 from src.dictionary_manager import DictionaryManager
 from src.translator import Translator
 from src.scraper import Scraper
 from src.progress_manager import ProgressManager
 from src.uploader import TangThuvienClient
-import src.config as config
 
 def run_full_translation_process(
         dict_manager: DictionaryManager,
@@ -22,26 +24,20 @@ def run_full_translation_process(
 ):
     """
     Hàm chính điều phối toàn bộ quá trình.
-    Hàm này giờ "nhận" các dịch vụ đã được khởi tạo.
+    (Giữ nguyên logic của hàm này, không thay đổi)
     """
 
     try:
-        # print(f"Đang khởi tạo Translator với API key cho truyện {ttv_story_id}...")
-        # (Bỏ print để đỡ nhiễu log)
         translator = Translator(dictionary_manager=dict_manager, api_key=google_api_key)
     except Exception as e:
         print(f"Lỗi khi khởi tạo Translator (kiểm tra API key?): {e}")
         return
-        # === KẾT THÚC THAY ĐỔI ===
 
-        # Xác định ID và thư mục output riêng cho truyện này
     book_id = "book_" + ttv_story_id
     book_output_dir = os.path.join(base_output_dir, book_id)
     os.makedirs(book_output_dir, exist_ok=True)
 
-    # Đường dẫn file progress riêng cho truyện này
     progress_file_path = os.path.join(book_output_dir, 'progress.json')
-    # Khởi tạo ProgressManager (thằng này stateful nhưng theo file, nên tạo mới mỗi lần)
     progress_manager = ProgressManager(state_file=progress_file_path)
 
     print(f"--- Tool đã sẵn sàng! ---")
@@ -56,7 +52,7 @@ def run_full_translation_process(
         return
 
     # 3. Lấy "bookmark" và lọc ra các chương cần dịch
-    # (Giữ nguyên logic này)
+    # (Giữ nguyên logic)
     last_processed_url = progress_manager.get_last_processed_url(book_id)
     chapters_to_process = []
 
@@ -82,6 +78,7 @@ def run_full_translation_process(
             print(f"Tìm thấy {len(chapters_to_process)} chương mới.")
 
     # Áp dụng giới hạn số chương (NẾU CÓ)
+    # (Giữ nguyên logic)
     if chapter_limit is not None and chapter_limit > 0:
         total_available = len(chapters_to_process)
         if total_available == 0:
@@ -95,6 +92,7 @@ def run_full_translation_process(
         return
 
     # 5. Lặp qua, cào, dịch và UPLOAD
+    # (Giữ nguyên toàn bộ logic vòng lặp, try/except/finally)
     total_batch = len(chapters_to_process)
     if total_batch == 0:
         print("Không có chương nào trong batch này để xử lý.")
@@ -124,7 +122,7 @@ def run_full_translation_process(
             print("Dịch xong.")
 
             # 8. Tách tiêu đề và nội dung đã dịch
-            # (Giữ nguyên logic này)
+            # (Giữ nguyên logic)
             translated_title = title
             vietnamese_text = full_translated_output
             try:
@@ -134,7 +132,7 @@ def run_full_translation_process(
                 cleaned_title = re.sub(pattern_to_remove, '', raw_translated_title, flags=re.IGNORECASE).strip()
 
                 if not cleaned_title:
-                    translated_title = "Vô Đề"  # Hoặc giữ raw_translated_title
+                    translated_title = "Vô Đề"
                 else:
                     translated_title = cleaned_title
 
@@ -149,16 +147,11 @@ def run_full_translation_process(
                 print(f"Cảnh báo: Lỗi khi tách tiêu đề ({e}). Sẽ dùng tiêu đề gốc và toàn bộ nội dung.")
 
             # Lấy số thứ tự chương (chap_stt)
+            # (Giữ nguyên logic)
             try:
-                # Lấy index tuyệt đối của chương trong toàn bộ danh sách
                 chapter_index = all_chapters.index(chapter_info) + 1
             except ValueError:
-                print(f"LỖI: Không tìm thấy chapter_info trong all_chapters. Dùng index tạm thời {i}.")
-                # Đây là một giải pháp dự phòng không lý tưởng,
-                # vì 'i' là index trong batch, không phải index của toàn truyện
-                # Nếu logic ở bước 3 đúng, lỗi này không nên xảy ra.
-                # Tạm thời bỏ qua chương này nếu logic index lỗi
-                print("Bỏ qua chương này do lỗi logic index.")
+                print(f"LỖI: Không tìm thấy chapter_info trong all_chapters. Bỏ qua.")
                 continue
 
             # Thực hiện upload
@@ -166,25 +159,93 @@ def run_full_translation_process(
                 story_id=ttv_story_id,
                 chapter_number=chapter_index,
                 title=translated_title,
-                content=vietnamese_text  # Sử dụng `vietnamese_text` nếu không muốn lặp lại tiêu đề
+                content=vietnamese_text
             )
 
-            # 10. Cập nhật "bookmark" CHỈ KHI upload thành công
+            # 10. Cập nhật "bookmark"
             if success:
                 print(f"Đã upload thành công chương {chapter_index} lên TTV.")
                 progress_manager.update_progress(book_id, chapter_info, book_url)
                 print(f"Đã cập nhật tiến độ: Đã xong chương '{title}'")
             else:
-                # Nếu upload lỗi, dừng ngay batch này để kiểm tra (tránh spam, lỗi cookies, etc.)
                 print(f"LỖI: Upload thất bại cho chương {chapter_index}. Dừng batch.")
                 break
     except Exception as e:
         print(f"\n--- LỖI NGHIÊM TRỌNG ---")
         print(f"Đã xảy ra lỗi trong quá trình dịch hoặc xử lý: {e}")
         print("Đã dừng batch. Tiến độ CHƯA được cập nhật cho chương này.")
-        print("Vui lòng kiểm tra lỗi (ví dụ: API key Gemini, mạng) và chạy lại tool.")
     finally:
-        # Thông báo này sẽ LUÔN LUÔN chạy, dù lỗi hay thành công
         print(f"\n--- KẾT THÚC BATCH CHO TRUYỆN {book_id} ---")
 
     print(f"\n--- HOÀN TẤT BATCH CHO TRUYỆN {book_id} ---")
+
+
+# === THAY ĐỔI MỚI: Thêm khối main để chạy độc lập ===
+def get_book_config_by_id(story_id: str):
+    """
+    Đọc file books_to_run.json và tìm config cho story_id cụ thể.
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file_path = os.path.join(base_dir, 'books_to_run.json')
+    try:
+        with open(config_file_path, 'r', encoding='utf-8') as f:
+            books = json.load(f)
+
+        for book_config in books:
+            if book_config.get('ttv_story_id') == story_id:
+                return book_config, base_dir
+
+        return None, base_dir
+    except Exception as e:
+        print(f"Lỗi khi đọc file config: {e}")
+        return None, base_dir
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Chạy quy trình dịch cho một truyện cụ thể.")
+    parser.add_argument("story_id", type=str, help="ttv_story_id của truyện cần chạy (lấy từ books_to_run.json)")
+    args = parser.parse_args()
+
+    print(f"[MAIN] Bắt đầu chạy cho story_id: {args.story_id}")
+
+    # 1. Tải config cho truyện này
+    book_config, base_dir = get_book_config_by_id(args.story_id)
+    if not book_config:
+        print(f"LỖI: Không tìm thấy config cho ttv_story_id '{args.story_id}' trong 'books_to_run.json'")
+        sys.exit(1)
+
+    # 2. Khởi tạo các dịch vụ stateless (giống logic trong run_all.py)
+    # Vì mỗi process là độc lập, chúng cần tự khởi tạo.
+    print(f"[MAIN] Đang khởi tạo dịch vụ (Tải từ điển...)...")
+    try:
+        g_dict_manager = DictionaryManager()
+        g_scraper = Scraper()
+        g_uploader = TangThuvienClient()
+        print(f"[MAIN] Dịch vụ đã sẵn sàng.")
+    except Exception as e:
+        print(f"LỖI NGHIÊM TRỌNG khi khởi tạo dịch vụ: {e}")
+        sys.exit(1)
+
+    base_output_directory = os.path.join(base_dir, "progress")
+
+    # 3. Gọi hàm xử lý chính
+    try:
+        run_full_translation_process(
+            # Dịch vụ stateless
+            dict_manager=g_dict_manager,
+            scraper=g_scraper,
+            uploader=g_uploader,
+
+            # Config của truyện (từ book_config)
+            book_url=book_config['book_url'],
+            base_output_dir=base_output_directory,
+            ttv_story_id=book_config['ttv_story_id'],
+            chapter_limit=book_config.get('chapter_limit', None),
+            google_api_key=book_config['google_api_key']
+        )
+    except KeyError as e:
+        print(f"LỖI: Cấu hình cho {args.story_id} thiếu key bắt buộc: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"LỖI NGHIÊM TRỌNG không xác định: {e}")
+        sys.exit(1)
